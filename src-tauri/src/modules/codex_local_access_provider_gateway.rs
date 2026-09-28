@@ -833,13 +833,15 @@ pub(crate) fn build_provider_model_catalog_json(
         }
     }
 
-    let catalog = json!({
+    let mut catalog = json!({
         "models": client_models
             .get("models")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default(),
     });
+    // 全档位收口：经本机网关的模型统一声明 low..ultra，保证选择器不因模板差异缺档。
+    codex_protocol::ensure_full_reasoning_levels(&mut catalog);
     serde_json::to_string_pretty(&catalog).map_err(|e| format!("生成 Codex 模型目录失败: {}", e))
 }
 
@@ -1052,7 +1054,10 @@ pub(crate) fn build_official_template_mapped_catalog_json(
         }
     }
 
-    serde_json::to_string_pretty(&json!({ "models": models }))
+    // 全档位收口：官方模板映射路径同样统一声明 low..ultra。
+    let mut catalog = json!({ "models": models });
+    codex_protocol::ensure_full_reasoning_levels(&mut catalog);
+    serde_json::to_string_pretty(&catalog)
         .map_err(|error| format!("生成 Codex 模型目录失败: {}", error))
 }
 

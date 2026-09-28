@@ -215,6 +215,65 @@ fn apply_reasoning_effort_override(object: &mut Map<String, Value>, efforts: &[S
     }
 }
 
+/// 六档思考强度的官方描述文案。
+fn reasoning_effort_description(effort: &str) -> &'static str {
+    match effort {
+        "low" => "Fast responses with lighter reasoning",
+        "medium" => "Balances speed and reasoning depth for everyday tasks",
+        "high" => "Greater reasoning depth for complex problems",
+        "xhigh" => "Extra high reasoning depth for complex problems",
+        "max" => "Maximum reasoning depth for the hardest problems",
+        "ultra" => "Maximum reasoning with automatic task delegation",
+        _ => "",
+    }
+}
+
+/// 全档位收口：把目录里每个模型的 `supported_reasoning_levels` 统一为 low..ultra 六档。
+///
+/// 官方模板按模型世代声明的档位并不一致（例如 gpt-5.5 模板只到 `xhigh`），
+/// 而经本机网关路由的 API 模型（第三方上游）需要始终能在模型选择器里选到
+/// 完整档位，因此在目录生成的收口点统一覆盖；上游对不支持档位的处理保持原样。
+pub(crate) fn ensure_full_reasoning_levels(catalog: &mut Value) -> bool {
+    const FULL: [&str; 6] = ["low", "medium", "high", "xhigh", "max", "ultra"];
+    let Some(models) = catalog.get_mut("models").and_then(Value::as_array_mut) else {
+        return false;
+    };
+    let mut changed = false;
+    for model in models {
+        let Some(object) = model.as_object_mut() else {
+            continue;
+        };
+        let already_full = object
+            .get("supported_reasoning_levels")
+            .and_then(Value::as_array)
+            .is_some_and(|levels| {
+                let efforts = levels
+                    .iter()
+                    .filter_map(|level| level.get("effort").and_then(Value::as_str))
+                    .collect::<Vec<_>>();
+                efforts == FULL
+            });
+        if already_full {
+            continue;
+        }
+        let levels = FULL
+            .iter()
+            .map(|effort| {
+                json!({
+                    "description": reasoning_effort_description(effort),
+                    "effort": effort,
+                })
+            })
+            .collect::<Vec<_>>();
+        object.insert(
+            "supported_reasoning_levels".to_string(),
+            Value::Array(levels),
+        );
+        changed = true;
+    }
+    changed
+}
+
 pub(crate) fn managed_codex_model_ids() -> Vec<String> {
     let catalog = codex_client_model_catalog();
     let overrides = catalog.get("model_overrides").and_then(Value::as_array);

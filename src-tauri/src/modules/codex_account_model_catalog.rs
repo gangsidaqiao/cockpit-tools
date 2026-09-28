@@ -2503,6 +2503,8 @@ fn rebuild_managed_catalog_from_existing(catalog_path: &Path) -> Result<(), Stri
             }
         }
     }
+    // 全档位收口：启动重建同样保证 low..ultra，避免重建后档位回退。
+    crate::modules::codex_protocol::ensure_full_reasoning_levels(&mut rebuilt);
     let mut content = serde_json::to_string_pretty(&rebuilt)
         .map_err(|e| format!("序列化重建后的模型目录失败: {}", e))?;
     content.push('\n');
