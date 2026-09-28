@@ -1,0 +1,46 @@
+name: build-windows-exe
+
+on:
+  push:
+    branches:
+      - "patch/full-reasoning-levels"
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Build Windows exe
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Go setup
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: sidecars/cockpit-cliproxy/go.mod
+
+      - name: Node setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Sync versions
+        run: npm run sync-version
+
+      - name: Build (no bundle)
+        run: npx tauri build --ci --config src-tauri/tauri.ci.conf.json --no-bundle
+
+      - name: Upload cockpit-tools.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: cockpit-tools-exe
+          path: target/release/cockpit-tools.exe
+          if-no-files-found: error
